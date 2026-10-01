@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Autonomous EV Fleet Energy &amp; Operations Agent</title>
+<style>
+:root{--bg:#eef2f6;--cd:#fff;--tx:#0f1b2d;--mu:#586a7e;--bd:#d6dee8;--ok:#0b7a55;--wa:#a35f00;--er:#c0392b;--ac:#1f5fbf;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c1420;--cd:#142030;--tx:#e6edf5;--mu:#93a6bb;--bd:#263a50;--ok:#3cc995;--wa:#e8a63a;--er:#f07463;--ac:#6ea6f5}}
+:root[data-theme="dark"]{--bg:#0c1420;--cd:#142030;--tx:#e6edf5;--mu:#93a6bb;--bd:#263a50;--ok:#3cc995;--wa:#e8a63a;--er:#f07463;--ac:#6ea6f5}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:#0f2a43;color:#fff;padding:12px 16px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;justify-content:space-between}
+h1{font-size:17px;margin:0}h1 small{display:block;font-weight:400;opacity:.75;font-size:12px;color:#fff}
+.on{font-weight:700;color:#5eead4}
+main{max-width:1240px;margin:0 auto;padding:12px}
+.bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+button,input{font:inherit;border:1px solid var(--bd);background:var(--cd);color:var(--tx);padding:6px 10px;border-radius:6px}
+button{cursor:pointer}button:hover{border-color:var(--ac)}
+.p{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}.g{background:var(--ok);color:#fff;border-color:var(--ok);font-weight:600}.r{color:var(--er)}
+.k{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px}
+.c{background:var(--cd);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;min-width:0;margin-bottom:8px}
+.k .c{margin:0}.k b{display:block;font-size:20px}.k span{color:var(--mu);font-size:12px}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:8px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);margin:0 0 6px}
+.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px}th,td{padding:4px 8px;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap}th{color:var(--mu);font-weight:600}
+.t{padding:0 5px;border-radius:8px;font-size:10px;font-weight:700;background:var(--bd);cursor:help}
+.Critical,.Unavailable{color:var(--er)}.Warning{color:var(--wa)}.Charging{color:var(--ac)}.Reserved,.Available{color:var(--ok)}
+.al{border:1px solid var(--er);background:rgba(192,57,43,.12);padding:8px 10px;border-radius:6px;margin:6px 0;white-space:normal}
+details ul{white-space:normal;min-width:300px;margin:4px 0;padding-left:16px}
+#feed{max-height:300px;overflow:auto}svg text{fill:var(--mu);font-size:9px}
+small{color:var(--mu)}
+</style></head><body>
+<header><h1>Autonomous EV Fleet Energy &amp; Operations Agent<small>From Fleet Data to Autonomous Energy Decisions</small></h1><div><span class="on">● SYSTEM ONLINE</span> · <b id="clk"></b> · simulated data</div></header>
+<main>
+<div class="bar"><button class="p" onclick="demo()">★ HACKATHON DEMO MODE</button><button onclick="start()">▶ Start Simulation</button><button onclick="pause()">⏸ Pause</button><button onclick="reset()">↻ Reset</button><button onclick="adv(15)">+15 min</button><button onclick="adv(60)">+1 hour</button><button onclick="opt()">Re-optimize</button></div>
+<div class="bar" id="scb"></div>
+<div class="k" id="kpi"></div><div class="c" id="pipe"></div>
+<div class="g2"><div class="c"><h2>Live fleet map</h2><div id="map"></div></div><div class="c"><h2>Agent activity</h2><div id="feed"></div></div></div>
+<div class="c" id="rec"></div><div class="c sc" id="aud2"></div>
+<div class="c sc"><h2>Charging optimization</h2><div id="tl"></div><div id="sch"></div></div>
+<div class="c sc"><h2>Live vehicle table</h2><div class="bar"><input id="q" placeholder="Search vehicle or status" oninput="tbl()"></div><div id="vt"></div></div>
+<div class="g2"><div class="c"><h2>Operator command</h2><div class="bar"><input id="cmd" style="flex:1;min-width:200px" placeholder="Why are you charging EV-07? · What if Station B fails? · Which vehicles are at risk?" onkeydown="if(event.key==='Enter')cmd()"><button class="p" onclick="cmd()">Ask</button></div><div id="ans" style="font-size:13px"></div></div><div class="c"><h2>Audit trail &amp; decisions</h2><div id="aud"></div></div></div>
+<div class="c"><details><summary>Method, assumptions and limits</summary><p><b>Scheduler.</b> Tasks are processed by priority, then start time. For each task every available EV is scored by an exhaustive search over (station, start slot) for the cheapest feasible charge; the lowest-cost EV wins and ties follow vehicle order. Critical coverage comes first, then charging plus deadhead cost; unnecessary charging is avoided by charging only to required SOC + 5%. Constraints: SOC at departure ≥ trip energy + reserve (20%), one task per EV, chargers per station per 30-min slot, offline stations excluded, charge ends ≥10 min before departure. EVs below 30% SOC with no task get a reserve top-up to 45%.</p><p>This is a deterministic, reproducible heuristic, not a proven-optimal MIP or OR-Tools solution. Tags: <span class="t">F</span> fact from the seeded simulation, <span class="t">C</span> calculation, <span class="t">A</span> assumption (price curve, charger speeds, 0.6 km per map unit, CO₂ factors 0.17 kg/km ICE vs 0.71 kg/kWh grid). Explanations are template text; no LLM is connected. Nothing here controls real chargers.</p></details></div>
+</main>
+<script>
+const RES=20,SL=30,HOR=1080,HIST=[0,0,0,0,0,1,3,4,2,1,1,1,1,2,2,3,4,6,7,6,4,3,1,0],COL={A:'#2a7de1',B:'#9b59b6',C:'#e67e22',D:'#16a085'};
+const $=s=>document.querySelector(s),sleep=ms=>new Promise(r=>setTimeout(r,ms)),stamp=()=>new Date().toLocaleTimeString('en-GB');
+const hm=m=>{m=Math.round(m);return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+const inr=n=>'₹'+Math.round(n).toLocaleString('en-IN'),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)*.6,uc=v=>v.cap*v.hp/100;
+const base=t=>{const h=Math.floor(t/60)%24;return h>=18&&h<22?11:(h>=22||h<6)?5.5:8},pr=(S,t)=>base(t)*S.pm;
+const tg={F:'FACT',C:'CALCULATION',A:'ASSUMPTION'};
+const why=l=>`<details><summary>Why?</summary><ul>${l.map(([k,s])=>`<li><span class="t" title="${tg[k]}">${k}</span> ${esc(s)}</li>`).join('')}</ul></details>`;
+let S,P,NV,rec=null,feed=[],aud=[],dec=[],lock=0,timer=null,G=0;
+const log=m=>{aud.push([stamp(),m]);drawAud()};
+const rk=v=>v.ok&&v.soc<30&&!v.chg&&!(S.applied&&S.applied.ch.some(c=>c.v===v.id));
+const status=v=>!v.ok?'Unavailable':v.busy>S.now?'On Trip':v.chg?'Charging':rk(v)?(v.soc<20?'Critical':'Warning'):(S.applied||P).as.some(x=>x.v===v.id)?'Reserved':'Available';
+
+function seed(){let a=11;const r=()=>(a=(a*1664525+1013904223)>>>0)/4294967296;
+ const V=[...Array(20)].map((_,i)=>({id:'EV-'+String(i+1).padStart(2,'0'),soc:Math.round(15+r()*80),cap:[55,60,75][i%3],hp:Math.round(90+r()*9),x:Math.round(6+r()*88),y:Math.round(8+r()*84),e:+(.15+r()*.07).toFixed(3),ok:true,busy:0,chg:null,task:''}));
+ V[6].soc=31;V[11].soc=19;V[3].ok=false;
+ [[1,'A',900],[8,'C',930],[13,'C',900],[16,'D',960]].forEach(([i,s,t])=>{V[i].ps=s;V[i].pl=t;V[i].chg=s;V[i].soc=40+i});
+ const ST=[['A',18,22,3,22],['B',72,30,3,50],['C',42,72,3,50],['D',84,80,2,22]].map(([id,x,y,n,kw])=>({id,x,y,n,kw,on:true}));
+ const T=[[1020,55,1],[1050,38,2],[1080,62,1],[1110,45,2],[1140,70,1],[1170,30,3],[1200,50,2],[1230,41,2],[1800,66,1],[1830,44,2]].map(([s,d,p],i)=>({id:'T'+(i+1),s,d,p,o:{x:Math.round(10+r()*80),y:Math.round(10+r()*80)}}));
+ return{V,ST,T,now:840,pm:1,tm:1,res:RES,applied:null,led:[]}}
+
+function plan0(S,nv){
+ const{V,ST,T,now,res}=S,end=now+HOR,use={},ch=[],as=[],miss=[],risk=new Set(),used=new Set(),on=ST.filter(s=>s.on),ef=1+.25*(S.tm-1);
+ const free=(s,t0,n)=>{for(let k=0;k<n;k++){nCon++;if((use[s.id+'@'+(t0+k*SL)]||0)>=s.n)return false}return true};
+ const alt=(v,dl,b)=>ST.map(s=>{if(!s.on)return[s.id,'rejected: station offline'];const n=Math.ceil(b.kwh/(s.kw*SL/60)),e0=Math.ceil((now+dist(v,s)*S.tm)/SL)*SL,lim=Math.min(dl,end);let bt=null;
+  for(let t0=e0;t0+n*SL<=lim;t0+=SL){if(!free(s,t0,n))continue;let rem=b.kwh,c=0;for(let k=0;k<n;k++){const q=Math.min(rem,s.kw*SL/60);c+=q*pr(S,t0+k*SL);rem-=q}nVar++;if(!bt||c<bt.c-1e-6)bt={t0,c}}
+  const f=bt?hm(bt.t0+Math.ceil(b.kwh/s.kw*60)):'';
+  return[s.id,s.id===b.s.id?`SELECTED: ₹${b.cost.toFixed(0)}, ${hm(b.t0)}–${f}, cheapest feasible`:bt?`rejected: ₹${bt.c.toFixed(0)} (+₹${(bt.c-b.cost).toFixed(0)}), finishes ${f}`:`rejected: ${e0+n*SL>lim?'cannot finish before '+hm(dl):'no free charger in window'}`]});
+ const sched=(v,tgt,dl)=>{const kwh=Math.max(0,(tgt-v.soc)/100*uc(v));if(kwh<=0)return null;let best=null;
+  for(const s of on){const n=Math.ceil(kwh/(s.kw*SL/60)),e0=Math.ceil((now+dist(v,s)*S.tm)/SL)*SL;
+   for(let t0=e0;t0+n*SL<=Math.min(dl,end);t0+=SL){if(!free(s,t0,n))continue;let rem=kwh,c=0;for(let k=0;k<n;k++){const q=Math.min(rem,s.kw*SL/60);c+=q*pr(S,t0+k*SL);rem-=q}
+    nVar++;if(!best||(nv?t0<best.t0:c<best.cost-1e-6))best={s,t0,n,cost:c,kwh,tgt,dl};if(nv)break}}
+  return best};
+ const wy=(v,b,t,req)=>{const t1=b.t0+Math.ceil(b.kwh/b.s.kw*60);return[
+  ['F',`Current SOC ${Math.round(v.soc)}% · battery health ${v.hp}% · usable ${uc(v).toFixed(0)} kWh`],
+  t?['F',`Next task ${t.id}: ${t.d} km departing ${hm(t.s)} (priority ${t.p})`]:['F','No task assigned; SOC is below the 30% reserve threshold'],
+  t?['C',`Required SOC ${req.toFixed(0)}% = trip energy + ${S.res}% minimum reserve`]:['C',`Top-up target ${b.tgt}% restores a safe reserve`],
+  ['C',`Charge ${b.kwh.toFixed(1)} kWh to ${b.tgt.toFixed(0)}%, not 100%: avoids unnecessary charging`],
+  ['C',`Station ${b.s.id} has ${b.s.n} chargers × ${b.s.kw} kW; free ${hm(b.t0)}–${hm(t1)}, capacity respected`],
+  ['C',`Average ₹${(b.cost/b.kwh).toFixed(2)}/kWh vs ₹${pr(S,1080).toFixed(2)} at the 18:00 peak${nv?'':'; cheapest feasible slot'}`],
+  t?['C',`Charge finishes ${t.s-t1} min before departure; battery constraint satisfied`]:['C',`Charge finishes ${hm(t1)}`],
+  ['A','Price curve, charger speed and distance scale are simulation assumptions'],...(nv?[]:alt(v,b.dl,b).map(([id,m])=>['C','Station '+id+': '+m]))]};
+ const put=(v,b,w,need)=>{for(let k=0;k<b.n;k++){const key=b.s.id+'@'+(b.t0+k*SL);use[key]=(use[key]||0)+1}
+  ch.push({v:v.id,st:b.s.id,t0:b.t0,t1:b.t0+Math.ceil(b.kwh/b.s.kw*60),kwh:b.kwh,cost:b.cost,tgt:b.tgt,need,why:w})};
+ for(const t of[...T].sort((a,b)=>a.p-b.p||a.s-b.s)){let best=null;
+  for(const v of V){if(!v.ok||used.has(v.id)||v.busy>t.s-20)continue;
+   const req=Math.min(100,t.d*v.e*ef/uc(v)*100+res),dd=dist(v,t.o);let o;
+   if(v.soc>=req)o={v,req,b:null,c:dd*.05};
+   else if(nv)continue;
+   else{const b=sched(v,Math.min(100,req+5),t.s-Math.ceil(dd*S.tm)-10);if(!b)continue;o={v,req,b,c:b.cost+dd*.05}}
+   if(!best||(!nv&&o.c<best.c-1e-6))best=o;if(nv&&best)break}
+  if(!best){miss.push(t);continue}
+  used.add(best.v.id);if(best.b)put(best.v,best.b,wy(best.v,best.b,t,best.req),Math.max(0,(best.req-best.v.soc)/100*uc(best.v)));
+  as.push({t,v:best.v.id,req:best.req,c:best.b?`charge ${best.b.kwh.toFixed(1)} kWh at Station ${best.b.s.id} ${hm(best.b.t0)} (${inr(best.b.cost)})`:`SOC ${Math.round(best.v.soc)}% already ≥ required ${best.req.toFixed(0)}%, no charging`})}
+ for(const v of V){if(!v.ok||used.has(v.id))continue;
+  if(nv){if(v.soc<50){const b=sched(v,100,end);if(b)put(v,b,wy(v,b,null,0),Math.max(0,(45-v.soc)/100*uc(v)));else risk.add(v.id)}}
+  else if(v.soc<30){const b=sched(v,45,end-30);if(b)put(v,b,wy(v,b,null,0),b.kwh);else risk.add(v.id)}}
+ const cost=ch.reduce((a,c)=>a+c.cost,0),kwh=ch.reduce((a,c)=>a+c.kwh,0),crit=T.filter(t=>t.p===1).length,miss1=miss.filter(t=>t.p===1).length,sl=Object.values(use).reduce((a,b)=>a+b,0),capT=on.reduce((a,s)=>a+s.n,0)*HOR/SL;
+ return{ch,as,miss,risk,cost,kwh,crit,miss1,cov:crit?100*(crit-miss1)/crit:100,util:capT?100*sl/capT:0,waste:ch.reduce((a,c)=>a+Math.max(0,c.kwh-c.need),0),co2:as.reduce((a,x)=>a+x.t.d,0)*.17-kwh*.71}}
+
+const fc=S=>{const o=[];for(let t=S.now;t<S.now+HOR;t+=60){const h=Math.floor(t/60)%24;o.push([t,.5*HIST[h]+.5*S.T.filter(x=>x.s>=t&&x.s<t+60).length])}return o};
+function msgs(A,N,B,name){const av=S.V.filter(v=>v.ok).length,low=S.V.filter(v=>v.ok&&v.soc<30),pk=fc(S).reduce((a,b)=>b[1]>a[1]?b:a),off=S.ST.filter(s=>!s.on).map(s=>s.id),km=S.T.reduce((a,t)=>a+t.d,0),inv=B?B.ch.filter(c=>!A.ch.some(x=>x.v===c.v&&x.st===c.st&&x.t0===c.t0)).length:0;
+ return[['Fleet',`${name?'Disruption: '+name+'. ':''}${av}/${S.V.length} EVs available · ${S.T.length} tasks in the next 18 h (${S.T.filter(t=>t.p===1).length} critical)`],
+ ['Battery',`${low.length} EVs below 30% SOC, reserve ${S.res}%${low.length?': '+low.slice(0,4).map(v=>v.id+' '+Math.round(v.soc)+'%').join(', '):''}`],
+ ['Route',`${km} km of tasks, traffic ×${S.tm} → about ${(km*.19*(1+.25*(S.tm-1))).toFixed(0)} kWh trip energy`],
+ ['Demand',`Peak at ${hm(pk[0])}: about ${pk[1].toFixed(1)} vehicles/h (simulated history blended with booked tasks)`],
+ ['Charging',`${S.ST.length-off.length}/${S.ST.length} stations online${off.length?', offline: '+off.join(', '):''}; ${B?inv+' planned sessions had to change':'no sessions invalidated'}`],
+ ['Cost',`Optimized ${inr(A.cost)} vs unoptimized ${inr(N.cost)}: saves ${inr(N.cost-A.cost)}`],
+ ['Optimization',`${A.as.length}/${S.T.length} tasks assigned · ${A.ch.length} charging sessions · ${A.miss.length} uncovered`],
+ ['Decision',A.miss1?`NO FEASIBLE PLAN for ${A.miss1} critical trip(s): human action required`:'Plan ready for operator approval']]}
+async function say(list){const g=G;for(const[a,m]of list){if(g!==G)return;feed.push({a,m,t:stamp()});drawFeed();await sleep(260)}}
+
+function drawKpi(){const Q=S.applied||P,tag=S.applied?'approved plan':'proposed plan',av=S.V.filter(v=>v.ok&&v.busy<=S.now).length;
+ const k=[['Fleet availability',`${av} / ${S.V.length}`,'EVs ready now'],['Vehicles charging',`${S.V.filter(v=>v.chg).length} now · ${Q.ch.length}`,'sessions planned'],['Battery risk',S.V.filter(rk).length,'EVs under 30%, no charge planned'],['Charging cost',inr(Q.cost),tag+', next 18 h'],['Projected savings',inr(NV.cost-Q.cost),'vs unoptimized plan'],['Critical trips covered',Q.cov.toFixed(0)+'%',`${Q.crit-Q.miss1}/${Q.crit} critical`],['Charger utilization',Q.util.toFixed(0)+'%','online chargers, 18 h']];
+ $('#kpi').innerHTML=k.map(([a,b,c])=>`<div class="c"><span>${a}</span><b>${b}</b><span>${c}</span></div>`).join('');$('#clk').textContent='Sim time '+hm(S.now)}
+function drawMap(){const Q=S.applied||P,col=v=>!v.ok?'#8896a6':v.soc<30?'var(--er)':v.soc<50?'var(--wa)':'var(--ok)';
+ $('#map').innerHTML=`<svg viewBox="0 0 100 100" style="width:100%;max-height:320px;background:var(--bg);border-radius:6px">${Q.ch.map(c=>{const v=S.V.find(x=>x.id===c.v),s=S.ST.find(x=>x.id===c.st);return`<line x1="${v.x}" y1="${v.y}" x2="${s.x}" y2="${s.y}" stroke="${COL[s.id]}" stroke-width=".35" stroke-dasharray="1.2 1"/>`}).join('')}${S.ST.map(s=>`<rect x="${s.x-2.5}" y="${s.y-2.5}" width="5" height="5" fill="${s.on?COL[s.id]:'none'}" stroke="${s.on?COL[s.id]:'var(--er)'}" stroke-width=".7"/><text x="${s.x}" y="${s.y+1.3}" text-anchor="middle" style="fill:${s.on?'#fff':'var(--er)'};font-size:3.2px;font-weight:700">${s.on?s.id:'✕'}</text>`).join('')}${S.V.map(v=>`<circle cx="${v.x}" cy="${v.y}" r="1.7" fill="${col(v)}"><title>${v.id} · SOC ${Math.round(v.soc)}% · ${status(v)}</title></circle>`).join('')}</svg><small>Squares: stations (✕ offline). Dots: EVs by SOC (green ≥50, amber 30–50, red under 30, grey unavailable). Dashed: planned charging trips. Simulated geometry.</small>`}
+function drawFeed(){const e=$('#feed');e.innerHTML=feed.length?feed.slice(-14).map(f=>`<div style="padding:3px 0;border-bottom:1px solid var(--bd)"><b style="color:var(--ok)">✓ ${f.a} Agent</b> <small>${f.t}</small><br>${esc(f.m)}</div>`).join(''):'<small>No agent activity yet. Run the demo or a scenario.</small>';e.scrollTop=e.scrollHeight}
+function drawRec(){if(!rec){$('#rec').innerHTML='';return}
+ const{sc,A,N,B,st}=rec,cols=B?[['Before disruption',B],['Disrupted · unoptimized',N],['After · re-optimized',A]]:[['Unoptimized',N],['Optimized',A]];
+ const rows=[['Charging cost',p=>inr(p.cost)],['Critical trips covered',p=>p.cov.toFixed(0)+'%'],['Vehicles at risk',p=>p.risk.size],['Charger utilization',p=>p.util.toFixed(0)+'%'],['Energy charged (kWh)',p=>p.kwh.toFixed(0)],['Energy waste (kWh)',p=>p.waste.toFixed(0)],['Est. net CO₂ avoided (kg)*',p=>p.co2.toFixed(0)]];
+ const chg=A.as.filter(x=>{const n=N.as.find(y=>y.t.id===x.t.id);return!n||n.v!==x.v}).slice(0,8);
+ $('#rec').innerHTML=`<h2>AI recommendation · ${esc(sc)}</h2>
+ ${A.miss1?`<div class="al"><b>NO FEASIBLE PLAN FOUND</b><br>Reason: ${A.miss1} critical trip(s) (${A.miss.filter(t=>t.p===1).map(t=>t.id).join(', ')}) cannot be covered with ${S.V.filter(v=>v.ok).length} available EVs and ${S.ST.filter(s=>s.on).length} online stations.<br>Recommended human action: add vehicles or restore a station, or reschedule the listed trips.</div>`:''}
+ <div class="sc"><table><tr><th></th>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr>${rows.map(([n,f])=>`<tr><td>${n}</td>${cols.map(c=>`<td>${f(c[1])}</td>`).join('')}</tr>`).join('')}</table></div>
+ <p><b>Result:</b> critical trips covered ${A.cov.toFixed(0)}% · vehicles at risk ${A.risk.size} · projected cost ${inr(A.cost)} vs ${inr(N.cost)} unoptimized · estimated savings <b>${inr(N.cost-A.cost)}</b> · charging schedule updated: YES · vehicle assignments updated: ${chg.length?'YES':'NO'}</p>
+ ${chg.length?`<h2>Fleet optimization: assignment changes vs unoptimized</h2><div class="sc"><table><tr><th>Task</th><th>Unoptimized</th><th>Recommended</th><th>Reason</th></tr>${chg.map(x=>{const n=N.as.find(y=>y.t.id===x.t.id);return`<tr><td>${x.t.id} (P${x.t.p}, ${x.t.d} km, ${hm(x.t.s)})</td><td>${n?n.v:'uncovered'}</td><td>${x.v}</td><td>${esc(x.c)}</td></tr>`}).join('')}</table></div>`:''}
+ <div class="bar" style="margin-top:8px">${st==='pending'?`<button class="g" onclick="act('approve')">APPROVE</button><button onclick="act('modify')">MODIFY (reserve → 30%)</button><button class="r" onclick="act('reject')">REJECT</button>`:`<b>Operator decision: ${st.toUpperCase()}</b>`}</div>
+ <small>AI EXPLANATION: template mode, no LLM connected. Every number above is a CALCULATION from the seeded simulation. *CO₂ is simulated (assumed 0.17 kg/km ICE vs 0.71 kg/kWh grid).</small>`}
+function drawTl(){const Q=S.applied||P,W=700,rh=13,H=22+Math.max(Q.ch.length,1)*rh,x=t=>(t-S.now)/HOR*W;let b='';
+ for(let t=S.now;t<S.now+HOR;t+=60){b+=`<rect x="${x(t)}" y="0" width="${W/18}" height="${H}" fill="var(--er)" opacity="${((pr(S,t)-5)/30).toFixed(2)}"/>`;if((t-S.now)%180===0)b+=`<text x="${x(t)+2}" y="${H-4}">${hm(t)}</text>`}
+ [...Q.ch].sort((a,c)=>a.t0-c.t0).forEach((c,i)=>{const y=4+i*rh,x0=x(c.t0),x1=Math.max(x0+3,x(c.t1)),left=x1>W-110;b+=`<rect x="${x0}" y="${y}" width="${x1-x0}" height="${rh-3}" rx="2" fill="${COL[c.st]}"/><text x="${left?x0-3:x1+3}" y="${y+8}"${left?' text-anchor="end"':''}>${c.v} @${c.st} ${hm(c.t0)}</text>`});
+ $('#tl').innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:560px">${b}</svg><small>Bars: charging sessions coloured by station. Red shading: electricity price (darker = pricier). Simulated.</small>`}
+function drawSch(){const Q=S.applied||P;$('#sch').innerHTML=`<table><tr><th>Vehicle</th><th>Station</th><th>Start–End</th><th>kWh</th><th>Est. cost</th><th>Priority</th><th>Why?</th></tr>${[...Q.ch].sort((a,b)=>a.t0-b.t0).map(c=>{const t=Q.as.find(x=>x.v===c.v);return`<tr><td>${c.v}</td><td>${c.st}</td><td>${hm(c.t0)}–${hm(c.t1)}</td><td>${c.kwh.toFixed(1)}</td><td>${inr(c.cost)}</td><td>${t?'P'+t.t.p+' · '+t.t.id:'Reserve top-up'}</td><td>${why(c.why)}</td></tr>`}).join('')}</table>`}
+function tbl(){const q=$('#q').value.toLowerCase(),Q=S.applied||P;$('#vt').innerHTML=`<table><tr>${'Vehicle,SOC,Health,Status,Current task,Next task,Location,Range,Charging,Risk'.split(',').map(h=>`<th>${h}</th>`).join('')}</tr>${S.V.map(v=>[v,status(v)]).filter(([v,s])=>(v.id+' '+s).toLowerCase().includes(q)).map(([v,s])=>{const c=Q.ch.find(c=>c.v===v.id),a=Q.as.find(x=>x.v===v.id),r=rk(v)?(v.soc<20?'Critical':'Warning'):'';return`<tr><td>${v.id}</td><td>${Math.round(v.soc)}%</td><td>${v.hp}%</td><td class="${s.replace(' ','')}">${s}</td><td>${v.task||'—'}</td><td>${a?a.t.id+' @'+hm(a.t.s):'—'}</td><td>(${v.x}, ${v.y})</td><td>${Math.round(v.soc/100*uc(v)/v.e)} km</td><td>${v.chg?'Now @'+v.chg:c?c.st+' '+hm(c.t0):'—'}</td><td class="${r}">${r||'OK'}</td></tr>`}).join('')}</table>`}
+function drawAud(){$('#aud').innerHTML=`<div style="max-height:170px;overflow:auto">${aud.slice(-14).map(([t,m])=>`<div><small>${t}</small> ${esc(m)}</div>`).join('')||'<small>No events yet.</small>'}</div>${dec.length?`<h2 style="margin-top:8px">Decision history</h2><div class="sc"><table><tr><th>Time</th><th>Scenario</th><th>Decision</th><th>Cost</th><th>Savings</th><th>Critical cov.</th></tr>${dec.map(d=>`<tr><td>${d.t}</td><td>${esc(d.sc)}</td><td>${d.a}</td><td>${inr(d.cost)}</td><td>${inr(d.sav)}</td><td>${d.cov.toFixed(0)}%</td></tr>`).join('')}</table></div>`:''}`}
+function drawAll(){drawKpi();drawMap();drawFeed();drawRec();drawTl();drawSch();tbl();drawAud()}
+function refresh(){P=plan(S);NV=plan(S,true);drawAll()}
+
+async function opt(){refresh();rec={sc:'Routine optimization',A:P,N:NV,st:'pending'};log('Optimization completed');log('Recommendation generated');drawAll();await say(msgs(P,NV,null,''))}
+const SC={B:['Charging Station B offline',S=>{S.ST.find(s=>s.id==='B').on=false}],P:['Electricity price +35%',S=>{S.pm*=1.35}],D:['Fleet demand +30%',S=>{const n=Math.ceil(S.T.length*.3);for(let i=0;i<n;i++){const s=S.T[i*2%S.T.length];S.T.push({id:'X'+(S.T.length+1),s:s.s+20,d:s.d+6,p:i%2?2:1,o:s.o})}}],U:['Five EVs unavailable',S=>{S.V.filter(v=>v.ok).sort((a,b)=>b.soc-a.soc).slice(0,5).forEach(v=>v.ok=false)}],R:['Traffic +40%',S=>{S.tm=1.4}],H:['High-priority task added',S=>{S.T.push({id:'HP1',s:S.now+150,d:85,p:1,o:{x:50,y:50}})}],M:['Signature: Station B offline + price +35% + demand +30%',S=>{SC.B[1](S);SC.P[1](S);SC.D[1](S)}]};
+async function run(k){if(lock)return;lock=1;const g=G;try{
+ const[name,fn]=SC[k],B=plan(S);log('Scenario triggered: '+name);
+ if(S.applied){S.applied=null;log('Applied plan invalidated by disruption')}
+ fn(S);const N=plan(S,true),A=plan(S);P=A;NV=N;log('Disruption detected: agents reassessing');drawAll();
+ await say(msgs(A,N,B,name));if(g!==G)return;
+ rec={sc:name,B,N,A,st:'pending'};log('Optimization completed');log('Recommendation generated');drawAll();
+ }catch(e){log('Error: '+e.message);console.error(e)}finally{lock=0}}
+function act0(a){if(!rec||rec.st!=='pending')return;const A=rec.A;
+ if(a==='modify'){S.res=30;rec.A=plan(S);rec.N=plan(S,true);P=rec.A;NV=rec.N;rec.sc+=' (reserve 30%)';log('Operator modified plan: reserve 20% → 30%, re-optimized');return drawAll()}
+ rec.st=a==='approve'?'approved':'rejected';if(a==='approve')S.applied=A;
+ dec.push({t:stamp(),sc:rec.sc,a:rec.st,cost:A.cost,sav:rec.N.cost-A.cost,cov:A.cov});
+ log(a==='approve'?'Operator approved':'Operator rejected');if(a==='approve')log('Plan applied (simulation only)');drawAll()}
+function adv(m){const a=S.now,b=a+m,Q=S.applied;
+ S.V.forEach(v=>{v.chg=null;if(v.ps){const o=Math.min(b,v.pl)-a;if(o>0){v.soc=Math.min(100,v.soc+22*o/60/uc(v)*100);v.chg=v.ps}else v.ps=null}});
+ if(Q)Q.ch.forEach(c=>{const o=Math.min(b,c.t1)-Math.max(a,c.t0);if(o>0){const v=S.V.find(x=>x.id===c.v),s=S.ST.find(x=>x.id===c.st);const kw=s.kw*o/60,pp=pr(S,Math.max(a,c.t0));v.soc=Math.min(100,v.soc+kw/uc(v)*100);v.chg=c.st;S.led.push({t:Math.max(a,c.t0),v:v.id,st:s.id,kwh:kw,p:pp,cost:kw*pp})}});
+ S.T=S.T.filter(t=>{if(t.s>b)return true;const x=Q&&Q.as.find(y=>y.t.id===t.id);if(x){const v=S.V.find(z=>z.id===x.v);v.soc=Math.max(0,v.soc-t.d*v.e*(1+.25*(S.tm-1))/uc(v)*100);v.busy=t.s+Math.ceil(t.d/35*60*S.tm);v.task=t.id;v.x=t.o.x;v.y=t.o.y}return false});
+ S.now=b;S.V.forEach(v=>{if(v.busy<=S.now)v.task=''});refresh();log('Simulation advanced to '+hm(S.now))}
+function start(){if(timer)return;timer=setInterval(()=>adv(15),1500);log('Simulation started')}
+function pause(){if(!timer)return;clearInterval(timer);timer=null;log('Simulation paused')}
+function reset(){clearInterval(timer);timer=null;G++;lock=0;S=seed();rec=null;feed=[];aud=[];dec=[];log('Simulation reset to seed data');refresh()}
+async function demo(){reset();const g=G;await opt();await sleep(900);if(g!==G)return;log('Demo: injecting disruption');await run('M');if(g!==G)return;$('#rec').scrollIntoView({behavior:'smooth'})}
+
+function ask(q){const s=q.toLowerCase(),Q=S.applied||P;let m;
+ if(m=s.match(/why.*ev-?(\d+)/)){const id='EV-'+m[1].padStart(2,'0'),c=Q.ch.find(c=>c.v===id),a=Q.as.find(x=>x.v===id);
+  return c?`<b>${id} → Station ${c.st}, ${hm(c.t0)}–${hm(c.t1)}</b>${why(c.why)}`:a?`${id} is assigned ${a.t.id}: ${esc(a.c)}.`:`${id} has no charging session or task in the current plan.`}
+ if(m=s.match(/(\d+)\s*(?:vehicles|evs?).*?by\s*(\d{1,2})\s*(am|pm)/)){const n=+m[1];let dl=((+m[2]%12)+(m[3]==='pm'?12:0))*60;if(dl<=S.now)dl+=1440;
+  const okc=S.V.filter(v=>v.ok),rd=okc.filter(v=>v.soc>=50),need=n-rd.length;
+  if(n>okc.length)return`<b>NO FEASIBLE PLAN FOUND</b><br>Reason: only ${okc.length} EVs are available, ${n} requested.<br>Recommended human action: bring unavailable EVs back or lower the target.`;
+  if(need<=0)return`${rd.length} EVs already have 50%+ SOC, so ${n} can be ready by ${hm(dl)} with no extra charging (₹0).`;
+  const ex=okc.filter(v=>v.soc<50).sort((a,b)=>b.soc-a.soc).slice(0,need),kwh=ex.reduce((a,v)=>a+(60-v.soc)/100*uc(v),0);let mp=1e9;for(let t=S.now;t<dl;t+=SL)mp=Math.min(mp,pr(S,t));
+  return`Ready = 50%+ SOC (assumption). ${rd.length} EVs qualify now. Charge ${ex.map(v=>v.id).join(', ')} to 60% (${kwh.toFixed(0)} kWh) in the cheapest window: lower-bound cost ${inr(kwh*mp)} at ₹${mp.toFixed(1)}/kWh.`}
+ if(m=s.match(/station\s*([a-d])/)){const X=m[1].toUpperCase(),A2=plan({...S,ST:S.ST.map(x=>({...x,on:x.id===X?false:x.on}))}),d=A2.cost-Q.cost;
+  return`What-if, not applied: Station ${X} offline → charging cost ${inr(A2.cost)} (${d>=0?'+':''}${inr(d)}), critical trips covered ${A2.cov.toFixed(0)}%, vehicles at risk ${A2.risk.size}, ${Q.ch.filter(c=>c.st===X).length} planned sessions affected.${A2.miss1?' <b>NO FEASIBLE PLAN</b> for all critical trips: restore a station or add vehicles.':''}`}
+ if(/risk/.test(s)){const r=S.V.filter(rk);return r.length?`${r.length} EVs are under 30% SOC with no charge scheduled: ${r.map(v=>v.id+' ('+Math.round(v.soc)+'%)').join(', ')}. Approving the plan schedules them.`:'No vehicles at risk: every EV under 30% SOC has a charging session in the plan.'}
+ if(/demand|tomorrow|forecast/.test(s)){const f=[...fc(S)].sort((a,b)=>b[1]-a[1]).slice(0,3);return`Projected demand peaks at ${f.map(x=>hm(x[0])+' (~'+x[1].toFixed(1)+' vehicles/h)').join(', ')}. Model: 50% simulated 7-day history + 50% booked tasks (assumption).`}
+ if(/situation|status|overview/.test(s))return`${S.V.filter(v=>v.ok).length}/${S.V.length} EVs available, ${S.V.filter(v=>v.chg).length} charging, ${S.V.filter(rk).length} at battery risk, ${S.T.length} tasks pending (${S.T.filter(t=>t.p===1).length} critical). Plan: ${inr(Q.cost)} charging cost, ${Q.cov.toFixed(0)}% critical coverage, ${Q.ch.length} sessions.`;
+ if(/cost|saving|cheap/.test(s))return`Current plan costs ${inr(Q.cost)} vs ${inr(NV.cost)} unoptimized (saves ${inr(NV.cost-Q.cost)}, ${NV.waste.toFixed(0)} kWh avoidable waste), with critical trips still ${Q.cov.toFixed(0)}% covered.`;
+ return'I could not map that to an agent query. Try: "Give me the current fleet situation", "Which vehicles are at risk?", "Why are you charging EV-07?", "What if Station B fails?", "I need 12 vehicles ready by 6 PM", "Show tomorrow\'s demand", "Reduce today\'s charging cost".'}
+function cmd(){const q=$('#cmd').value.trim();if(!q)return;let h;try{h=ask(q)}catch(e){h='Could not process that command: '+esc(e.message)}
+ $('#ans').innerHTML=`<p><b>You:</b> ${esc(q)}</p><p>${h}</p><small>AI EXPLANATION: deterministic template mode (no LLM key). Figures are calculated from the simulation.</small>`;log('Operator command: '+q)}
+
+$('#scb').innerHTML='<b style="align-self:center;font-size:12px;color:var(--mu)">What-if:</b>'+Object.entries(SC).map(([k,[n]])=>`<button onclick="run('${k}')">${k==='M'?'⚡ ':''}${n}</button>`).join('');
+/* ===== upgrades: agent contracts, independent validator, audit, deltas, ledger ===== */
+const WT={unserved:5000,critical:50000,risk:1500};
+let nVar=0,nCon=0,stage=0,runs=[],runN=0,curSc='Initial load';
+const hash=S=>{let h=2166136261;const s=JSON.stringify([S.now,S.pm,S.tm,S.res,S.V.map(v=>[v.id,Math.round(v.soc),v.ok]),S.ST.map(x=>[x.id,x.on]),S.T.map(t=>[t.id,t.s,t.d,t.p])]);for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16).padStart(8,'0')};
+const AG=(agent,summary,findings,constraints,evidence,x)=>({agent,timestamp:new Date().toISOString(),summary,findings,constraints,evidence,...x});
+function fleetAgent(S){const ok=S.V.filter(v=>v.ok),bz=ok.filter(v=>v.busy>S.now),un=S.V.filter(v=>!v.ok).map(v=>v.id),f={available_vehicle_count:ok.length-bz.length,busy_vehicle_count:bz.length,charging_vehicle_count:S.V.filter(v=>v.chg).length,unavailable_vehicle_count:un.length,critical_vehicle_ids:ok.filter(v=>v.soc<20).map(v=>v.id)};
+ return AG('FleetAgent',`${f.available_vehicle_count} available, ${f.busy_vehicle_count} busy, ${f.charging_vehicle_count} charging, ${un.length} unavailable${un.length?' ('+un.join(', ')+')':''}`,f,[`${ok.length} EVs may be assigned`],[`${S.V.length} vehicle records inspected`],{available_ids:ok.map(v=>v.id)})}
+function batteryAgent(S){const r=S.V.filter(v=>v.ok&&v.soc<30).map(v=>({vehicle_id:v.id,soc:Math.round(v.soc),usable_kwh:+uc(v).toFixed(1),range_km:Math.round(v.soc/100*uc(v)/v.e),risk:v.soc<20?'HIGH':'MEDIUM'}));
+ return AG('BatteryAgent',`${r.length} EVs below 30% SOC${r.length?': '+r.slice(0,4).map(x=>x.vehicle_id+' '+x.soc+'%').join(', '):''}`,{at_risk:r},[`minimum reserve ${S.res}% SOC`].concat(r.map(x=>`${x.vehicle_id} needs charging before its next task`)),r.map(x=>`${x.vehicle_id}: SOC ${x.soc}%, usable ${x.usable_kwh} kWh, range ${x.range_km} km`))}
+function routeAgent(S){const ef=1+.25*(S.tm-1),km=S.T.reduce((a,t)=>a+t.d,0),kwh=km*.19*ef,soon=S.T.filter(t=>t.s-S.now<120).map(t=>t.id);
+ return AG('RouteAgent',`${S.T.length} tasks, ${km} km, about ${kwh.toFixed(0)} kWh at traffic ×${S.tm}`,{task_count:S.T.length,total_km:km,energy_kwh:+kwh.toFixed(1),traffic_factor:S.tm,departing_within_2h:soon},['trip energy = km × consumption × traffic factor','charge must finish 10 min before departure'],['fleet-average consumption 0.19 kWh/km is an assumption'])}
+function demandAgent(S){let s=HIST[0],e=0;HIST.slice(1).forEach(h=>{e+=Math.abs(h-s);s=.4*h+.6*s});const m=HIST.reduce((a,b)=>a+b,0)/HIST.length,conf=Math.max(0,1-e/(HIST.length-1)/m),f=fc(S),pk=f.reduce((a,b)=>b[1]>a[1]?b:a),av=S.V.filter(v=>v.ok).length;
+ return AG('DemandAgent',`Peak ${hm(pk[0])}: about ${pk[1].toFixed(1)} vehicles/h, confidence ${(conf*100).toFixed(0)}%${pk[1]>av?', SHORTAGE RISK':''}`,{predicted_vehicle_demand_by_time:f.map(([t,d])=>[hm(t),+d.toFixed(2)]),confidence:+conf.toFixed(2),peak_periods:f.filter(x=>x[1]>=.8*pk[1]).map(x=>hm(x[0])),vehicle_shortage_risk:pk[1]>av?'HIGH':'LOW'},['forecast = 50% simulated hourly history + 50% booked tasks'],['confidence = 1 − MAE/mean of one-step exponential smoothing (α 0.4) over simulated history'])}
+function chargingAgent(S){const on=S.ST.filter(s=>s.on),off=S.ST.filter(s=>!s.on).map(s=>s.id);
+ return AG('ChargingAgent',`${on.length}/${S.ST.length} stations online${off.length?', offline: '+off.join(', '):''}; ${on.reduce((a,s)=>a+s.n,0)} chargers, ${on.reduce((a,s)=>a+s.n*s.kw,0)} kW`,{stations:S.ST.map(s=>({station_id:s.id,online:s.on,chargers:s.n,power_kw:s.kw,price_now:+pr(S,S.now).toFixed(2)}))},off.map(i=>`Station ${i} cannot receive assignments`),[`capacity = chargers per ${SL}-min slot`],{online:on.map(s=>s.id)})}
+function costAgent(S){const f=[];for(let t=S.now;t<S.now+HOR;t+=SL)f.push(+pr(S,t).toFixed(2));
+ return AG('CostAgent',`Price now ₹${pr(S,S.now).toFixed(2)}/kWh (×${S.pm.toFixed(2)}), range ₹${Math.min(...f)}–₹${Math.max(...f)}`,{price_multiplier:S.pm,price_by_slot:f},['cost = Σ kWh × slot price'],['tariff 5.5 / 8 / 11 ₹/kWh by time of day is a simulation assumption'],{price_multiplier:S.pm})}
+function agentsRun(S){const o={};[['fleet',fleetAgent],['battery',batteryAgent],['demand',demandAgent],['route',routeAgent],['charging',chargingAgent],['cost',costAgent]].forEach(([k,f])=>{const t=performance.now();o[k]=f(S);o[k].ms=+(performance.now()-t).toFixed(2)});return o}
+function validate(S,R){const V=Object.fromEntries(S.V.map(v=>[v.id,v])),u={},seen={},bad=[];
+ R.ch.forEach(c=>{const s=S.ST.find(x=>x.id===c.st);if(!s.on)bad.push(['Offline station used',c.v+' @'+c.st]);for(let t=c.t0;t<c.t1;t+=SL){const k=c.st+'@'+t;u[k]=(u[k]||0)+1;if(u[k]>s.n)bad.push(['Charger capacity',c.v+' '+k])}});
+ R.as.forEach(x=>{const v=V[x.v],c=R.ch.find(y=>y.v===x.v),need=x.t.d*v.e*(1+.25*(S.tm-1))/uc(v)*100+S.res;if(!v.ok||seen[x.v])bad.push(['Vehicle availability / double-booking',x.v]);seen[x.v]=1;if(v.soc+(c?c.kwh/uc(v)*100:0)<need-1e-6)bad.push(['SOC reserve',x.v]);if(c&&c.t1>x.t.s-10)bad.push(['Deadline',x.v])});
+ if(R.miss1)bad.push(['Critical trips covered',R.miss1+' uncovered']);return bad}
+function plan(S,nv){const ag=agentsRun(S);nVar=nCon=0;const t=performance.now(),
+ X={...S,V:S.V.map(v=>({...v,ok:ag.fleet.available_ids.includes(v.id)})),ST:S.ST.map(s=>({...s,on:ag.charging.online.includes(s.id)})),pm:ag.cost.price_multiplier},R=plan0(X,nv);
+ R.ms=performance.now()-t;R.vars=nVar;R.cons=nCon;R.ag=ag;R.bad=validate(X,R);
+ R.obj=R.cost+WT.unserved*R.miss.length+WT.critical*R.miss1+WT.risk*R.risk.size;
+ R.status=R.miss1?'INFEASIBLE: critical trips uncovered':R.bad.length?'REJECTED BY VALIDATOR':nv?'FEASIBLE · baseline heuristic':'FEASIBLE · heuristic search, not proven optimal';
+ R.hash=hash(S);R.id=(nv?'BASE-':'OPT-')+String(++runN).padStart(4,'0');
+ R.ch.forEach(c=>c.why.push(['F','Agents involved: Fleet, Battery, Route, Charging, Cost → Optimization → Validator'],['C',`Objective contribution ₹${c.cost.toFixed(0)}. Independent validator: ${R.bad.some(b=>String(b[1]).startsWith(c.v))?'VIOLATION flagged':'SOC reserve, charger capacity, station status and deadline all SATISFIED'}`]));
+ runs.push({id:R.id,ts:stamp(),sc:curSc,hash:R.hash,obj:R.obj,status:R.status,ms:R.ms,vars:R.vars,cons:R.cons});if(runs.length>60)runs.shift();return R}
+function delta(A,B){const a=Object.fromEntries(A.as.map(x=>[x.t.id,x.v])),b=Object.fromEntries(B.as.map(x=>[x.t.id,x.v])),sa=Object.fromEntries(A.ch.map(c=>[c.v,c.st+hm(c.t0)])),sb=Object.fromEntries(B.ch.map(c=>[c.v,c.st+hm(c.t0)])),ks=[...new Set([...Object.keys(sa),...Object.keys(sb)])];
+ return{cost:A.cost-B.cost,re:Object.keys(a).filter(k=>k in b&&a[k]!==b[k]).length,sch:ks.filter(k=>sa[k]!==sb[k]).length,cov:A.cov-B.cov,risk:A.risk.size-B.risk.size,util:A.util-B.util}}
+function ledgerOf(S,R){return R.ch.flatMap(c=>{const s=S.ST.find(x=>x.id===c.st),o=[];let rem=c.kwh;for(let t=c.t0;rem>1e-9;t+=SL){const q=Math.min(rem,s.kw*SL/60);o.push({t,v:c.v,st:c.st,kwh:q,p:pr(S,t),cost:q*pr(S,t)});rem-=q}return o})}
+function trace(S,A,N,B,name){const g=A.ag,ev=[];if(name)ev.push(['EVENT',name,1]);
+ ['fleet','battery','demand','route','charging','cost'].forEach(k=>ev.push([g[k].agent,`${g[k].summary} (${g[k].ms} ms)`,2]));
+ ev.push(['CostAgent',`Unoptimized plan ${inr(N.cost)} vs optimized ${inr(A.cost)}${B?', previous optimized plan '+inr(B.cost):''}`,2]);
+ ev.push(['OptimizationEngine',`Evaluated ${A.vars.toLocaleString()} charging options with ${A.cons.toLocaleString()} constraint checks`,3]);
+ ev.push(['OptimizationEngine',`${A.status}: objective ${A.obj.toFixed(1)}, ${A.ms.toFixed(1)} ms, ${A.as.length}/${S.T.length} tasks assigned`,3]);
+ ev.push(['Validator',A.bad.length?'REJECTED: '+[...new Set(A.bad.map(b=>b[0]))].join(', '):'All 6 independent checks passed',4]);
+ ev.push(['ExplanationEngine',`${A.ch.length} decision traces generated${A.miss1?'. NO FEASIBLE PLAN: human action required':''}`,5]);return ev}
+async function say(list){const g=G;for(const[a,m,s]of list){if(g!==G)return;if(s!==undefined)stage=s;feed.push({a,m,t:stamp()});drawFeed();drawX();await sleep(80)}}
+function drawFeed(){const e=$('#feed');e.innerHTML=feed.length?feed.slice(-16).map(f=>`<div style="padding:3px 0;border-bottom:1px solid var(--bd)"><b style="color:${f.a==='EVENT'?'var(--er)':'var(--ok)'}">${f.a==='EVENT'?'⚠':'✓'} ${f.a}</b> <small>${f.t}</small><br>${esc(f.m)}</div>`).join(''):'<small>No agent activity yet. Run the demo or a disruption.</small>';e.scrollTop=e.scrollHeight}
+function drawX(){const L=['Current plan','Disruption','Agents analyze','Optimizer solves','Validation','New plan'];
+ $('#pipe').innerHTML=L.map((s,i)=>`<span style="display:inline-block;margin:2px 2px 2px 0;padding:3px 9px;border-radius:12px;font-size:12px;border:1px solid var(--bd);${i<stage?'background:var(--ok);color:#fff':i===stage?'background:var(--ac);color:#fff':''}">${i<stage?'✓ ':''}${s}</span>`).join('→ ');
+ const R=rec?rec.A:P,Nb=rec?rec.N:NV,B=rec?(rec.B||rec.N):null,d=B?delta(R,B):null,sum=a=>a.reduce((x,y)=>x+y.cost,0),Lb=ledgerOf(S,Nb),La=ledgerOf(S,R),ex=S.led.reduce((a,x)=>a+x.cost,0),
+ chk=['SOC reserve','Offline station used','Charger capacity','Deadline','Vehicle availability / double-booking','Critical trips covered'];
+ $('#aud2').innerHTML=`<h2>Optimization audit · ${R.id}</h2><table><tr><th>Solver status</th><th>Objective value</th><th>Decision options evaluated</th><th>Constraint checks</th><th>Solve time</th><th>Feasible</th><th>Input hash</th></tr><tr><td>${R.status}</td><td>${R.obj.toFixed(1)}</td><td>${R.vars.toLocaleString()}</td><td>${R.cons.toLocaleString()}</td><td>${R.ms.toFixed(1)} ms</td><td>${R.bad.length?'NO':'YES'}</td><td>${R.hash}</td></tr></table>
+ <small>Objective = charging cost + ${WT.unserved}×uncovered tasks + ${WT.critical}×uncovered critical + ${WT.risk}×at-risk EVs (weights live in WT). Counters are real tallies from the search. This is a deterministic heuristic, not OR-Tools CP-SAT.</small>
+ <h2 style="margin-top:8px">Independent validation</h2><div>${chk.map(n=>{const b=R.bad.filter(x=>x[0]===n);return`<span class="${b.length?'Critical':'Available'}" style="margin-right:14px;white-space:nowrap">${b.length?'✗':'✓'} ${n}${b.length?' ('+b.map(x=>x[1]).join(', ')+')':''}</span>`}).join('')}</div>
+ ${d?`<h2 style="margin-top:8px">${rec.B?'Before vs after disruption':'Unoptimized vs optimized'}: computed deltas</h2><div>Cost Δ ${inr(d.cost)} · vehicles reassigned ${d.re} · charging schedules changed ${d.sch} · critical coverage Δ ${d.cov.toFixed(0)} pp · at-risk EVs Δ ${d.risk} · charger utilization Δ ${d.util.toFixed(1)} pp</div>`:''}
+ <h2 style="margin-top:8px">Ledger check</h2><div>Baseline ledger ${inr(sum(Lb))} (plan ${inr(Nb.cost)}) · optimized ledger ${inr(sum(La))} (plan ${inr(R.cost)}) · savings ${inr(sum(Lb)-sum(La))} · executed so far ${inr(ex)} in ${S.led.length} transactions</div>
+ <details><summary>Agent contracts, run history, executed ledger</summary><pre style="white-space:pre-wrap;font-size:11px;max-height:240px;overflow:auto">${esc(JSON.stringify(Object.values(R.ag).map(a=>({agent:a.agent,timestamp:a.timestamp,ms:a.ms,findings:a.findings,constraints:a.constraints,evidence:a.evidence})),null,1))}</pre>
+ <table><tr><th>Run</th><th>Time</th><th>Scenario</th><th>Status</th><th>Objective</th><th>Solve ms</th><th>Hash</th></tr>${runs.slice(-6).map(r=>`<tr><td>${r.id}</td><td>${r.ts}</td><td>${esc(r.sc)}</td><td>${r.status}</td><td>${r.obj.toFixed(1)}</td><td>${r.ms.toFixed(1)}</td><td>${r.hash}</td></tr>`).join('')}</table>
+ <table><tr><th>Time</th><th>EV</th><th>Station</th><th>Energy</th><th>Price</th><th>Cost</th></tr>${S.led.slice(-5).map(x=>`<tr><td>${hm(x.t)}</td><td>${x.v}</td><td>${x.st}</td><td>${x.kwh.toFixed(1)} kWh</td><td>₹${x.p.toFixed(2)}</td><td>${inr(x.cost)}</td></tr>`).join('')||'<tr><td colspan="6">No energy transactions yet. Approve a plan, then advance time.</td></tr>'}</table></details>`}
+function drawAll(){drawKpi();drawMap();drawFeed();drawRec();drawTl();drawSch();tbl();drawAud();drawX()}
+async function opt(){const g=G;curSc='Routine optimization';stage=0;refresh();rec={sc:curSc,A:P,N:NV,st:'pending'};log(`Optimization ${P.id}: ${P.status}`);drawAll();await say(trace(S,P,NV,null,''));if(g===G){stage=6;drawX()}}
+async function run(k){if(lock)return;lock=1;const g=G;try{
+ const[name,fn]=SC[k];curSc='Before: '+name;stage=0;const B=plan(S);curSc=name;stage=1;log('Scenario triggered: '+name);
+ if(S.applied){S.applied=null;log('Applied plan invalidated by disruption')}
+ fn(S);P=plan(S);NV=plan(S,true);const A=P,N=NV;
+ A.ch.forEach(c=>{const p=B.ch.find(x=>x.v===c.v);c.why.push(['F',`Previous plan: ${p?'Station '+p.st+' '+hm(p.t0):'no charging'}. Trigger: ${name}`])});
+ log('Disruption detected: agents reassessing');drawAll();
+ await say(trace(S,A,N,B,name));if(g!==G)return;
+ stage=6;rec={sc:name,B,N,A,st:'pending'};log(`Optimization ${A.id}: ${A.status}; validation ${A.bad.length?'FAILED':'passed'}`);drawAll();
+ }catch(e){log('Error: '+e.message);console.error(e)}finally{lock=0}}
+function act(a){if(a==='approve'&&rec&&rec.st==='pending'&&rec.A.bad.length){log('Approval blocked: plan failed independent validation ('+rec.A.bad.map(b=>b[0]).join(', ')+')');return drawAll()}act0(a)}
+function reset(){clearInterval(timer);timer=null;G++;lock=0;S=seed();rec=null;feed=[];aud=[];dec=[];runs=[];runN=0;stage=0;log('Simulation reset to seed data');refresh()}
+SC.B[0]='Station B failure';SC.U[0]='5 vehicles unavailable';SC.R[0]='Heavy traffic';
+$('#scb').innerHTML=`<button class="r" style="font-size:16px;font-weight:700;padding:10px 18px;border:2px solid var(--er)" onclick="$('#dm').hidden=!$('#dm').hidden">⚡ SIMULATE DISRUPTION</button><div id="dm" hidden class="c" style="margin:0;flex:1"><div class="bar" style="margin:0"><button class="g" onclick="run('M')">⚡ COMBINED CRITICAL SCENARIO: Station B fails + price +35% + demand +30%</button>${['B','P','D','U','R','H'].map(k=>`<button onclick="run('${k}')">${SC[k][0]}</button>`).join('')}</div></div>`;
+S=seed();opt();
+</script></body></html>
